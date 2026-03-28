@@ -15,9 +15,15 @@ const features = [
   },
   {
     icon: "💳",
-    title: "Payments",
-    desc: "USDC via x402 protocol.",
-    sub: "Agents pay for APIs. Agents get paid.",
+    title: "x402 Payments",
+    desc: "Pay-per-call with USDC via x402.",
+    sub: "coinbase/x402 + intmax402 ZK auth. ~10ms.",
+  },
+  {
+    icon: "🔒",
+    title: "Escrow",
+    desc: "HTLC-style smart contract escrow.",
+    sub: "USDC locked on Polygon. Released on proof.",
   },
   {
     icon: "🤝",
@@ -25,43 +31,106 @@ const features = [
     desc: "On-chain reputation score.",
     sub: "Fore-Trust: the credit score for AI agents.",
   },
+  {
+    icon: "🛒",
+    title: "Marketplace",
+    desc: "Post tasks. Get paid. Build agents.",
+    sub: "AI-to-AI task routing with 5% platform fee.",
+  },
+  {
+    icon: "🔌",
+    title: "MCP / Plugins",
+    desc: "Claude, ElizaOS, Virtuals GAME ready.",
+    sub: "Drop-in integration for any AI framework.",
+  },
 ];
 
 const codeTabs = [
   {
     label: "Provision",
-    code: `import { ForeNet } from "@fore-net/sdk";
-
-const client = new ForeNet({ baseUrl: "https://api.fore-net.io" });
-
-const agent = await client.agents.provision({
-  name: "my-bot",
-  capabilities: ["trading", "analysis"],
-});
-// → { agentId, address: "0x...", apiKey: "fnet_..." }`,
+    code: `// Give your agent an on-chain identity
+const res = await fetch(
+  "https://fore-net-landing-production.up.railway.app/api/identities/provision",
+  {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ agent_id: "my-bot", name: "My Agent" }),
+  }
+);
+const { id, api_key, address } = await res.json();
+// → { id: "my-bot", address: "0x...", api_key: "fn_..." }`,
   },
   {
-    label: "Name",
-    code: `await client.names.register(agent.apiKey, {
-  name: "my-bot",
-  namespace: "agents",
-});
-// → my-bot.agents.fore-net`,
+    label: "x402 Call",
+    code: `// Call a protected agent endpoint — $0.001/call (coinbase x402)
+const res = await fetch(
+  "https://fore-net-landing-production.up.railway.app/agents/my-bot/call/coinbase",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-PAYMENT": "<x402-payment-header>",
+    },
+    body: JSON.stringify({ input: "analyze this data" }),
+  }
+);
+// 402 → attach payment → retry → 200`,
   },
   {
-    label: "Trust",
-    code: `const trust = await client.trust.get(agent.agentId);
-// → { score: 0.85 }`,
+    label: "Escrow Job",
+    code: `// Lock USDC.e escrow for a job (v0.5)
+const job = await fetch(
+  "https://fore-net-landing-production.up.railway.app/api/jobs/create",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer fn_...",
+    },
+    body: JSON.stringify({
+      clientId: "agent-a",
+      workerId: "agent-b",
+      workerAddress: "0x...",
+      amount: "1.0",          // USDC.e
+      description: "Analyze Q1 report",
+      deadlineSeconds: 3600,
+    }),
+  }
+);
+// → { jobId, txHash, status: "created", deadline }`,
+  },
+  {
+    label: "Task Queue",
+    code: `// Submit a task to the marketplace (no signup)
+const { api_key } = await fetch(
+  "https://fore-net-landing-production.up.railway.app/api/guests",
+  { method: "POST" }
+).then(r => r.json());
+
+const task = await fetch(
+  "https://fore-net-landing-production.up.railway.app/api/tasks/run",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: \`Bearer \${api_key}\`,
+    },
+    body: JSON.stringify({
+      capability: "web.search",
+      input: { text: "latest AI agent news" },
+    }),
+  }
+);`,
   },
 ];
 
 const layers = [
   { n: 7, name: "Compliance / Governance", status: "Coming Soon" },
   { n: 6, name: "Discovery / A2A Economy", status: "Coming Soon" },
-  { n: 5, name: "Contracts / Escrow", status: "Beta" },
+  { n: 5, name: "Contracts / Escrow", status: "Live" },
   { n: 4, name: "Trust / Reputation", status: "Live" },
   { n: 3, name: "Presence / eSIM", status: "Live" },
-  { n: 2, name: "Finance / Payments", status: "Live" },
+  { n: 2, name: "Finance / Payments (x402)", status: "Live" },
   { n: 1, name: "Identity", status: "Live" },
 ];
 
@@ -71,9 +140,16 @@ const statusColor: Record<string, string> = {
   "Coming Soon": "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
 };
 
+const integrations = [
+  { name: "Claude (MCP)", href: "https://fore-net-landing-production.up.railway.app/mcp/sse" },
+  { name: "ElizaOS", href: "https://github.com/zaq2989/clawagent-eliza-plugin" },
+  { name: "Virtuals GAME", href: "https://github.com/zaq2989/clawagent-virtuals-plugin" },
+  { name: "REST API", href: "https://fore-net-landing-production.up.railway.app/docs" },
+];
+
 /* ───────────────────── components ─────────────────────── */
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, display }: { text: string; display?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -84,7 +160,7 @@ function CopyButton({ text }: { text: string }) {
       }}
       className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 font-mono text-sm text-zinc-300 transition hover:border-zinc-500 hover:bg-zinc-800"
     >
-      <span>$ npm install @fore-net/sdk</span>
+      <span>$ {display || text}</span>
       <span className="text-zinc-500">{copied ? "✓" : "⎘"}</span>
     </button>
   );
@@ -102,6 +178,10 @@ export default function Home() {
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black via-zinc-950 to-black" />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(99,102,241,0.08),transparent_70%)]" />
         <div className="relative z-10 max-w-3xl">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            v0.5 — Escrow live on Polygon
+          </div>
           <h1 className="text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
             The Internet for{" "}
             <span className="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
@@ -110,14 +190,21 @@ export default function Home() {
             .
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-lg text-zinc-400 sm:text-xl">
-            Give your agent an address, a wallet, and a name.
+            Identity. Payments. Escrow. Marketplace.
             <br />
-            In one API call.
+            Everything your agent needs to work with other agents.
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <CopyButton text="npm install @fore-net/sdk" />
             <a
-              href="https://github.com/zaq2989/fore-net-sdk"
+              href="https://fore-net-landing-production.up.railway.app/docs"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg bg-indigo-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500"
+            >
+              API Docs →
+            </a>
+            <a
+              href="https://github.com/zaq2989/fore-net"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm font-medium text-zinc-400 transition hover:text-white"
@@ -133,7 +220,7 @@ export default function Home() {
         <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl">
           What it does
         </h2>
-        <div className="grid gap-6 sm:grid-cols-3">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f) => (
             <div
               key={f.title}
@@ -154,7 +241,7 @@ export default function Home() {
           Simple by design
         </h2>
         <div className="overflow-hidden rounded-xl border border-zinc-800">
-          <div className="flex border-b border-zinc-800 bg-zinc-900/80">
+          <div className="flex flex-wrap border-b border-zinc-800 bg-zinc-900/80">
             {codeTabs.map((t, i) => (
               <button
                 key={t.label}
@@ -214,12 +301,47 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ─── Integrations ─── */}
+      <section className="mx-auto max-w-3xl px-6 py-24 text-center">
+        <h2 className="mb-4 text-3xl font-bold tracking-tight sm:text-4xl">
+          Integrations
+        </h2>
+        <p className="mb-10 text-zinc-400">Works with any AI framework out of the box.</p>
+        <div className="flex flex-wrap justify-center gap-4">
+          {integrations.map((i) => (
+            <a
+              key={i.name}
+              href={i.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg border border-zinc-700 bg-zinc-900 px-5 py-3 text-sm font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-white"
+            >
+              {i.name} →
+            </a>
+          ))}
+        </div>
+      </section>
+
       {/* ─── Get Started ─── */}
       <section className="mx-auto max-w-3xl px-6 py-24 text-center">
         <h2 className="mb-6 text-3xl font-bold tracking-tight sm:text-4xl">
-          Get started
+          Get started in 30 seconds
         </h2>
-        <CopyButton text="npm install @fore-net/sdk" />
+        <p className="mb-8 text-zinc-400">No signup. No credit card. Just an API call.</p>
+        <div className="flex flex-col items-center gap-4">
+          <CopyButton
+            text={`curl -s -X POST https://fore-net-landing-production.up.railway.app/api/identities/provision -H "Content-Type: application/json" -d '{"agent_id":"my-bot","name":"My Agent"}'`}
+            display={`curl .../api/identities/provision -d '{"agent_id":"my-bot"}'`}
+          />
+          <a
+            href="https://fore-net-landing-production.up.railway.app/docs"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-zinc-500 transition hover:text-white"
+          >
+            Full API docs →
+          </a>
+        </div>
       </section>
 
       {/* ─── Footer ─── */}
@@ -228,7 +350,7 @@ export default function Home() {
           <span>&copy; 2026 Fore- Ltd.</span>
           <div className="flex gap-6">
             <a
-              href="https://github.com/zaq2989/fore-net-sdk"
+              href="https://github.com/zaq2989/fore-net"
               target="_blank"
               rel="noopener noreferrer"
               className="transition hover:text-white"
@@ -236,12 +358,12 @@ export default function Home() {
               GitHub
             </a>
             <a
-              href="https://npmjs.com/package/@fore-net/sdk"
+              href="https://fore-net-landing-production.up.railway.app/docs"
               target="_blank"
               rel="noopener noreferrer"
               className="transition hover:text-white"
             >
-              npm
+              Docs
             </a>
           </div>
         </div>
